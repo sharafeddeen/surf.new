@@ -1,14 +1,21 @@
-import logging
-from browser_use import Agent, Browser, BrowserConfig, Controller
-from typing import Any, List, Mapping, AsyncIterator, Optional
+from .lib.browser_use import Agent, Browser, BrowserConfig, Controller
+from .lib.browser_use.browser.context import BrowserContext
+from ...utils.types import AgentSettings
 from ...providers import create_llm
 from ...models import ModelConfig
-from langchain.schema import AIMessage
 from langchain_core.messages import ToolCall, ToolMessage
-import os
+from langchain.schema import AIMessage
 from dotenv import load_dotenv
-from ...utils.types import AgentSettings
+from typing import Any, List, Mapping, AsyncIterator, Optional
+import os
+import logging
 import asyncio
+import sys
+from pathlib import Path
+
+# Add the lib directory to Python path
+sys.path.append(str(Path(__file__).parent / "lib"))
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -35,16 +42,18 @@ async def browser_use_agent(
     llm = create_llm(model_config)
     logger.info("🤖 Created LLM instance")
 
+    # Browser-use setup
     controller = Controller(exclude_actions=['open_tab', 'switch_tab'])
-
+    browser = Browser(
+        BrowserConfig(cdp_url=f"{STEEL_CONNECT_URL}?apiKey={STEEL_API_KEY}&sessionId={session_id}"))
+    browser_context = BrowserContext(browser=browser)
 
     agent = Agent(
         llm=llm,
         task=history[-1]["content"],
         controller=controller,
-        browser=Browser(
-            BrowserConfig(cdp_url=f"{STEEL_CONNECT_URL}?apiKey={STEEL_API_KEY}&sessionId={session_id}")
-        ),
+        browser=browser,
+        browser_context=browser_context,
         generate_gif=False,
     )
     logger.info("🌐 Created Agent with browser instance")
@@ -104,6 +113,16 @@ async def browser_use_agent(
             if result.is_done:
                 logger.info("✅ Task completed with result: %s",
                             result.extracted_content)
+                # First yield any pending tool results
+                if last_tool_call_ids:
+                    logger.info("📥 Yielding remaining tool results")
+                    for tool_call_id in last_tool_call_ids:
+                        yield ToolMessage(
+                            content=str(result.extracted_content),
+                            tool_call_id=tool_call_id
+                        )
+                    last_tool_call_ids = []
+                # Then yield the final success message
                 yield AIMessage(content=result.extracted_content)
                 finished = True
                 break

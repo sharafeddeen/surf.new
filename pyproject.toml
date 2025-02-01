@@ -45,8 +45,12 @@ dependencies = [
     "uvloop>=0.19.0",
     "watchfiles>=0.22.0",
     "websockets>=12.0",
-    "browser-use>=0.1.30",
     "steel-sdk>=0.1.0b8",
+    "pillow>=11.1.0",
+    "langchain>=0.3.17",
+    "maincontentextractor>=0.0.4",
+    "posthog>=3.11.0",
+    "lmnr>=0.4.56",
 ]
 [tool.setuptools]
 packages = ["api"]
